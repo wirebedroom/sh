@@ -28,7 +28,7 @@ void sh_loop(void)
                                   
     int i = 0;
     printf("Args output\n");
-    while (args[i] != nullptr) {
+    while (args[i] != NULL) {
       printf("%i ", i);
       printf("%s\n", args[i]);
       ++i;
@@ -76,7 +76,7 @@ char *sh_read_line(void)
 }
 
 
-#define SH_SL_BUFSIZE 256
+#define SH_SL_BUFSIZE 10
 char **sh_split_line(char *line)
 {
   int bufsize = SH_SL_BUFSIZE;
@@ -103,7 +103,7 @@ char **sh_split_line(char *line)
   while (sscanf(line, "%s %[^\n]", tokens[i], line) > 0 && 
          strcmp(line, last_word) &&
          i < bufsize) {
-    // printf("tokens["); printf("%i", i); printf("]: %s\n", tokens[i]);
+    printf("tokens["); printf("%i", i); printf("]: %s\n", tokens[i]);
     ++i;
     if (i >= bufsize) {
       printf("Bufsize exceeded");
@@ -111,7 +111,15 @@ char **sh_split_line(char *line)
       tokens = realloc(tokens, bufsize);
     }
   }
-  tokens[i+1] = last_word;
+  // printf("%s\n", last_word);
+  printf("Exited the loop\n");
+  printf("tokens["); printf("%i", i); printf("]: %s\n", tokens[i]);
+  ++i;
+  // sscanf(line, "%s %[^\n]", tokens[i], line);
+  tokens[i] = strdup(last_word);
+  printf("tokens["); printf("%i", i); printf("]: %s\n", tokens[i]);
+  tokens[i+1] = NULL;
+  // printf("%s\n", tokens[i]);
 
   // i = 0;
   // printf("Tokens output\n");
