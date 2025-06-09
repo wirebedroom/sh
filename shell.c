@@ -26,7 +26,6 @@ void sh_loop(void)
   printf("> ");
   line = sh_read_line();
   args = sh_split_line(line);
-
                                 
   int i = 0;
   printf("Args output\n");
@@ -82,18 +81,9 @@ char *sh_read_line(void)
   }
 }
 
-int len(char *str) 
-{
-  int length = 0;
-  while (str[length]) {
-    ++length;
-  }
-  return length;
-}
-
 int max_word_len(char *line)
 {
-  int line_length = len(line);
+  int line_length = strlen(line);
   int max_length = 0;
   if (line_length == 0) {
     return 0;
@@ -118,14 +108,14 @@ int max_word_len(char *line)
 
 int word_count(char *line)
 {
-  int line_length = len(line);
+  int line_length = strlen(line);
   if (line_length == 0) {
     return 0;
   } else { 
     int word_count = 1;
     int i = 0;
     while (i < line_length) {
-      if (line[i] == 32) {
+      if (32 <= line[i] && line[i] <= 47) {
         ++word_count;
       }
       ++i;
@@ -137,76 +127,38 @@ int word_count(char *line)
 
 char **sh_split_line(char *line)
 {
-  int line_length = len(line);
+  int line_length = strlen(line);
   int line_word_count = word_count(line);
-  // printf("%i\n", line_length);
   int max_word_length = max_word_len(line);
 
   char **tokens = malloc((line_word_count + 1) * sizeof(char*)); // add one for null terminator.
-  // char *last_word = malloc(max_word_length * sizeof(char));
-
-  // for (int i = 0; i < line_length; ++i) {
-  //   tokens[i] = malloc(len(line[i]) * sizeof(char));
-  // }
-
-  // // Находим последнее слово в строке.
-  // char *p = strrchr(line, ' ');
-  // if (p && *(p + 1)) {
-  //   strcpy(last_word, p + 1);
-  // } else { // на случай, если слово в строке одно.
-  //   strcpy(last_word, line);
-  // }
 
   int i = 0, j = 0;
   char current_word[max_word_length];
   int current_word_length = 0;
   int word_count = 0;
+  bool is_word;
   while (i <= line_length) {
-    if ((32 <= line[i] && line[i] <= 47) || !line[i]) {
+    if ( ((32 <= line[i] && line[i] <= 47) && is_word) || 
+         (!line[i] && is_word) ) {
       tokens[word_count] = malloc(current_word_length * sizeof(char));
-      // printf("Current word: %s\n", current_word);
       strncpy(tokens[word_count], current_word, current_word_length);
       tokens[word_count][current_word_length] = '\0';
-      printf("tokens["); printf("%i", word_count); printf("]: %s\n", tokens[word_count]);
+      // printf("tokens["); printf("%i", word_count); printf("]: %s\n", tokens[word_count]);
       ++word_count; 
       current_word_length = 0;
       j = 0;
-    } else {
+      is_word = false;
+    } else if ( !((32 <= line[i] && line[i] <= 47) || 
+                 (!line[i])) ) {
       current_word[j] = line[i];
       ++current_word_length;
       ++j;
+      is_word = true;
     }
     ++i;
   }
-  //printf("tokens["); printf("%i", word_count); printf("]: %s\n", tokens[word_count]);
   tokens[i] = NULL;
-
-  /*
-  while (i < line_length) {
-    sscanf(line, "%s %[^\n]", tokens[i], line);
-    printf("tokens["); printf("%i", i); printf("]: %s\n", tokens[i]);
-    ++i;
-    if (i >= line_length) {
-      printf("Bufsize exceeded\n");
-      line_length += SH_SL_LINE_LENGTH;
-      tokens = realloc(tokens, line_length * sizeof(char*));
-      for (int j = i; j < line_length; ++j) {
-        tokens[j] = malloc(word_length);
-      }
-      if (!tokens) { // is satisfied if tokens == nullptr.
-        fprintf(stderr, "sh: allocation error\n");
-        exit(EXIT_FAILURE);
-      }
-    }
-  }
-  */
-  // printf("Exited the loop\n");
-  // printf("tokens["); printf("%i", i); printf("]: %s\n", tokens[i]);
-  // ++i;
-  // // sscanf(line, "%s %[^\n]", tokens[i], line);
-  // tokens[i] = last_word;
-  // printf("tokens["); printf("%i", i); printf("]: %s\n", tokens[i]);
-  // printf("%s\n", tokens[i]);
 
   return tokens;
 }
