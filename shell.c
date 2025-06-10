@@ -5,9 +5,9 @@
 void sh_loop(void);
 char *sh_read_line(void);
 char **sh_split_line(char *line);
-int len(char *str);
-int word_count(char *line);
-int max_word_len(char *line);
+void sh_launch(char **args);
+int sh_word_count(char *line);
+int sh_max_word_len(char *line);
 
 int main(int argc, char **argv)
 {
@@ -28,12 +28,15 @@ void sh_loop(void)
   args = sh_split_line(line);
                                 
   int i = 0;
+  printf("\n");
   printf("Args output\n");
   while (args[i] != NULL) {
     printf("%i ", i);
     printf("%s\n", args[i]);
     ++i;
   }
+
+  sh_launch(args);
 
   while (args[i] != NULL) {
     free(args[i]);
@@ -81,7 +84,7 @@ char *sh_read_line(void)
   }
 }
 
-int max_word_len(char *line)
+int sh_max_word_len(char *line)
 {
   int line_length = strlen(line);
   int max_length = 0;
@@ -106,7 +109,7 @@ int max_word_len(char *line)
   return 0;
 }
 
-int word_count(char *line)
+int sh_word_count(char *line)
 {
   int line_length = strlen(line);
   if (line_length == 0) {
@@ -128,8 +131,8 @@ int word_count(char *line)
 char **sh_split_line(char *line)
 {
   int line_length = strlen(line);
-  int line_word_count = word_count(line);
-  int max_word_length = max_word_len(line);
+  int line_word_count = sh_word_count(line);
+  int max_word_length = sh_max_word_len(line);
 
   char **tokens = malloc((line_word_count + 1) * sizeof(char*)); // add one for null terminator.
 
@@ -137,10 +140,10 @@ char **sh_split_line(char *line)
   char current_word[max_word_length];
   int current_word_length = 0;
   int word_count = 0;
-  bool is_word;
+  bool is_word = false;
   while (i <= line_length) {
-    if ( ((32 <= line[i] && line[i] <= 47) && is_word) || 
-         (!line[i] && is_word) ) {
+    if ( ((32 <= line[i] && line[i] <= 47) || !line[i]) && is_word ) { // if the previous symbol was not part of a word (it was a dot, a comma, a space, etc), then we don't write it to tokens.
+      current_word[j] = '\0';
       tokens[word_count] = malloc(current_word_length * sizeof(char));
       strncpy(tokens[word_count], current_word, current_word_length);
       tokens[word_count][current_word_length] = '\0';
@@ -150,15 +153,22 @@ char **sh_split_line(char *line)
       j = 0;
       is_word = false;
     } else if ( !((32 <= line[i] && line[i] <= 47) || 
-                 (!line[i])) ) {
+                  !line[i]) ) {
       current_word[j] = line[i];
       ++current_word_length;
       ++j;
-      is_word = true;
+      is_word = true; // we have now began reading a proper word.
     }
     ++i;
   }
-  tokens[i] = NULL;
+  tokens[word_count] = NULL;
 
   return tokens;
+}
+
+
+void sh_launch(char **args)
+{
+  pid_t pid;
+  return;
 }
