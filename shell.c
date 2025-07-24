@@ -1,6 +1,10 @@
+// TODO
+// Maybe use a linked list for args.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
 
 void sh_loop(void);
 char *sh_read_line(void);
@@ -21,32 +25,34 @@ void sh_loop(void)
 {
   char *line;
   char **args;
-  int status;
+  int status = 1;
 
-  printf("> ");
-  line = sh_read_line();
-  args = sh_split_line(line);
-                                
-  int i = 0;
-  printf("\n");
-  printf("Args output\n");
-  while (args[i] != NULL) {
-    printf("%i ", i);
-    printf("%s\n", args[i]);
-    ++i;
-  }
+  do {
+    printf("> ");
+    line = sh_read_line();
+    args = sh_split_line(line);
+                                  
+    // printf("Args output\n");
+    // int i = 0;
+    // while (args[i] != NULL) {
+    //   printf("%i ", i);
+    //   printf("%s\n", args[i]);
+    //   ++i;
+    // }
 
-  sh_launch(args);
+    sh_launch(args);
 
-  while (args[i] != NULL) {
-    free(args[i]);
-    ++i;
-  }
+    int i = 0;
+    while (args[i] != NULL) {
+      free(args[i]);
+      ++i;
+    }
 
-  // status = sh_execute(args);
+    // status = sh_execute(args);
 
-  free(line);
-  free(args);
+    free(line);
+    free(args);
+  } while (status);
 };
 
 
@@ -169,6 +175,27 @@ char **sh_split_line(char *line)
 
 void sh_launch(char **args)
 {
-  pid_t pid;
+  pid_t pid = fork();
+  pid_t wpid;
+  int status;
+
+  if (pid == 0) { // go into the child process.
+    if (execvp(args[0], args) == -1) {
+      perror("sh");
+    }
+    exit(EXIT_FAILURE);
+  } else if (pid < 0) {
+    perror("sh");
+  } else { // go into the parent process. pid always has the parent process first.
+    do {
+      // WUNTRACED reports the status of any child processes that are stopped if their status hasn't been reported since they stopped. The status of these child processes is reported to the requesting process.
+      // waitpid suspends execution of the calling process (parent) until its child changes state.
+      wpid = waitpid(pid, &status, WUNTRACED);
+      if (wpid == -1) {
+        perror("sh");
+        break;
+      }
+    } while (!WIFEXITED(status) && !WIFSIGNALED(status)); // while the child process hasn't exited/been stopped.
+  }
   return;
 }
