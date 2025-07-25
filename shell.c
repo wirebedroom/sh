@@ -188,8 +188,6 @@ void sh_launch(char **args)
     perror("sh");
   } else { // go into the parent process. pid always has the parent process first.
     do {
-      // WUNTRACED reports the status of any child processes that are stopped if their status hasn't been reported since they stopped. The status of these child processes is reported to the requesting process.
-      // waitpid suspends execution of the calling process (parent) until its child changes state.
       wpid = waitpid(pid, &status, WUNTRACED);
       if (wpid == -1) {
         perror("sh");
