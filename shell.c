@@ -1,3 +1,5 @@
+// A simple shell. Line symbols are whitelisted.
+// I'm actually not sure if we need to handle stuff inside the quotation marks as a single argument. echo works fine, I don't know of any other use cases for quotation marks. For now I'm just going to ignore them.
 // TODO
 // Maybe use a linked list for args.
 #include <stdio.h>
@@ -28,7 +30,12 @@ void sh_loop(void)
   int status = 1;
 
   do {
-    printf("> ");
+    const char *user = getenv("USER");
+    char hostname[256];
+    gethostname(hostname, sizeof(hostname));
+    const char *pwd = getenv("PWD");
+
+    printf("[%s@%s %s]$ ", user, hostname, pwd);
     line = sh_read_line();
     args = sh_split_line(line);
                                   
@@ -64,7 +71,7 @@ char *sh_read_line(void)
   int position = 0;
 
   if (!buffer) { // is satisfied if buffer == nullptr.
-      fprintf(stderr, "sh: allocation error\n");
+      fprintf(stderr, "wsh: allocation error\n");
       exit(EXIT_FAILURE);
     }
 
@@ -83,7 +90,7 @@ char *sh_read_line(void)
       bufsize += SH_RL_BUFSIZE;
       buffer = realloc(buffer, bufsize);
       if (!buffer) { // is satisfied if buffer == nullptr.
-        fprintf(stderr, "sh: allocation error\n");
+        fprintf(stderr, "wsh: allocation error\n");
         exit(EXIT_FAILURE);
       }
     }
@@ -137,8 +144,9 @@ int sh_word_count(char *line)
 char **sh_split_line(char *line)
 {
   int line_length = strlen(line);
+  printf("Line length: %i\n", line_length);
   int line_word_count = sh_word_count(line);
-  int max_word_length = sh_max_word_len(line);
+  int max_word_length = sh_max_word_len(line) + 2; // + 1 for null termination and + 1 for a possible space.
 
   char **tokens = malloc((line_word_count + 1) * sizeof(char*)); // add one for null terminator.
 
@@ -148,23 +156,38 @@ char **sh_split_line(char *line)
   int word_count = 0;
   bool is_word = false;
   while (i <= line_length) {
-    if ( ((32 <= line[i] && line[i] <= 47) || !line[i]) && is_word ) { // if the previous symbol was not part of a word (it was a dot, a comma, a space, etc), then we don't write it to tokens.
+    // Handling quotation marks. Two pointers method.
+    // We can't treat the thing inside the quotation marks as one word because max_word_len doesn't care about that.
+    // We have enough space for the longest word and no more.
+    if (i + 1 < line_length && line[i] == '"') {
+      int r = i + 1;
+      j = 0;
+      while (r < line_length && line[r] != '"' && j < max_word_length - 1 && // - 1 because '\0'.
+             32 <= line[r] && line[r] < 127) { // 32, so spaces are allowed.
+        current_word[j] = line[r];
+        ++current_word_length;
+        ++j;
+        ++r;
+        is_word = true; // we have now begun reading a proper word.
+      }
+      i = r + 1; // step off the closing quotation mark.
+    }
+    // Handling other cases.
+    if ((0 <= line[i] && line[i] < 33) && is_word) { // if the previous symbol was SPACE or TAB or ESC or etc, then we don't write it to tokens.
       current_word[j] = '\0';
       tokens[word_count] = malloc(current_word_length * sizeof(char));
       strncpy(tokens[word_count], current_word, current_word_length);
       tokens[word_count][current_word_length] = '\0';
-      // printf("tokens["); printf("%i", word_count); printf("]: %s\n", tokens[word_count]);
       ++word_count; 
       current_word_length = 0;
       j = 0;
       is_word = false;
-    } else if ( !((32 <= line[i] && line[i] <= 47) || 
-                  !line[i]) ) {
+    } else if (33 <= line[i] && line[i] < 127) { // the upper bound is 127 because 127 == 'del'.
       current_word[j] = line[i];
       ++current_word_length;
       ++j;
-      is_word = true; // we have now began reading a proper word.
-    }
+      is_word = true; // we have now begun reading a proper word.
+    }    
     ++i;
   }
   tokens[word_count] = NULL;
@@ -175,25 +198,32 @@ char **sh_split_line(char *line)
 
 void sh_launch(char **args)
 {
-  pid_t pid = fork();
-  pid_t wpid;
-  int status;
-
-  if (pid == 0) { // go into the child process.
-    if (execvp(args[0], args) == -1) {
-      perror("sh");
+  if (!strcmp(args[0], "cd")) { // handling cd. Also will have to handle other builtins.
+    if (chdir(args[1])) {
+      perror("wsh");
     }
-    exit(EXIT_FAILURE);
-  } else if (pid < 0) {
-    perror("sh");
-  } else { // go into the parent process. pid always has the parent process first.
-    do {
-      wpid = waitpid(pid, &status, WUNTRACED);
-      if (wpid == -1) {
-        perror("sh");
-        break;
+    setenv("PWD", args[1], 1);
+  } else {
+    pid_t pid = fork();
+    pid_t wpid;
+    int status;
+
+    if (pid == 0) { // go into the child process.
+      if (execvp(args[0], args) == -1) {
+        perror("wsh");
       }
-    } while (!WIFEXITED(status) && !WIFSIGNALED(status)); // while the child process hasn't exited/been stopped.
+      exit(EXIT_FAILURE);
+    } else if (pid < 0) {
+      perror("wsh");
+    } else { // go into the parent process. pid always has the parent process first.
+      do {
+        wpid = waitpid(pid, &status, WUNTRACED);
+        if (wpid == -1) {
+          perror("wsh");
+          break;
+        }
+      } while (!WIFEXITED(status) && !WIFSIGNALED(status)); // while the child process hasn't exited/been stopped.
+    }
   }
   return;
 }
