@@ -1,6 +1,7 @@
-// A simple shell. Line symbols are whitelisted.
-// I'm actually not sure if we need to handle stuff inside the quotation marks as a single argument. echo works fine, I don't know of any other use cases for quotation marks. For now I'm just going to ignore them.
+// A simple shell. Appropriate line symbols are whitelisted.
 // TODO
+// wsh_split_line(): treat stuff inside the quotation marks in a special way, meaning we need to treat spaces as characters.
+// wsh_launch(): handle cd .. after cd /bin or anything like that. It's weird because bin is actually a subdirectory of /usr, but cd doesn't care and just goes right in. Also if we are in /usr and we cd .. it currently doesn't change pwd to "/", instead pwd just becomes nothing.
 // Maybe use a linked list for args.
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,22 +9,22 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-void sh_loop(void);
-char *sh_read_line(void);
-char **sh_split_line(char *line);
-void sh_launch(char **args);
-int sh_word_count(char *line);
-int sh_max_word_len(char *line);
+void wsh_loop(void);
+char *wsh_read_line(void);
+char **wsh_split_line(char *line);
+void wsh_launch(char **args);
+int wsh_word_count(char *line);
+int wsh_max_word_len(char *line);
 
 int main(int argc, char **argv)
 {
 
-  sh_loop();
+  wsh_loop();
 
   return EXIT_SUCCESS;
 }
 
-void sh_loop(void) 
+void wsh_loop(void) 
 {
   char *line;
   char **args;
@@ -36,8 +37,8 @@ void sh_loop(void)
     const char *pwd = getenv("PWD");
 
     printf("[%s@%s %s]$ ", user, hostname, pwd);
-    line = sh_read_line();
-    args = sh_split_line(line);
+    line = wsh_read_line();
+    args = wsh_split_line(line);
                                   
     // printf("Args output\n");
     // int i = 0;
@@ -47,7 +48,7 @@ void sh_loop(void)
     //   ++i;
     // }
 
-    sh_launch(args);
+    wsh_launch(args);
 
     int i = 0;
     while (args[i] != NULL) {
@@ -64,7 +65,7 @@ void sh_loop(void)
 
 
 #define SH_RL_BUFSIZE 1024
-char *sh_read_line(void)
+char *wsh_read_line(void)
 {
   int bufsize = SH_RL_BUFSIZE;
   char *buffer = malloc(sizeof(char) * bufsize); // buffer == nullptr if there's not enough memory for allocattion.
@@ -97,7 +98,7 @@ char *sh_read_line(void)
   }
 }
 
-int sh_max_word_len(char *line)
+int wsh_max_word_len(char *line)
 {
   int line_length = strlen(line);
   int max_length = 0;
@@ -122,7 +123,7 @@ int sh_max_word_len(char *line)
   return 0;
 }
 
-int sh_word_count(char *line)
+int wsh_word_count(char *line)
 {
   int line_length = strlen(line);
   if (line_length == 0) {
@@ -141,14 +142,13 @@ int sh_word_count(char *line)
   return 0;
 }
 
-char **sh_split_line(char *line)
+char **wsh_split_line(char *line)
 {
   int line_length = strlen(line);
-  printf("Line length: %i\n", line_length);
-  int line_word_count = sh_word_count(line);
-  int max_word_length = sh_max_word_len(line) + 2; // + 1 for null termination and + 1 for a possible space.
+  int line_word_count = wsh_word_count(line);
+  int max_word_length = wsh_max_word_len(line) + 2; // + 1 for null termination and + 1 for possible spaces at the end.
 
-  char **tokens = malloc((line_word_count + 1) * sizeof(char*)); // add one for null terminator.
+  char **tokens = malloc((line_word_count + 1) * sizeof(char*)); // + 1 for null termination.
 
   int i = 0, j = 0;
   char current_word[max_word_length];
@@ -156,23 +156,6 @@ char **sh_split_line(char *line)
   int word_count = 0;
   bool is_word = false;
   while (i <= line_length) {
-    // Handling quotation marks. Two pointers method.
-    // We can't treat the thing inside the quotation marks as one word because max_word_len doesn't care about that.
-    // We have enough space for the longest word and no more.
-    if (i + 1 < line_length && line[i] == '"') {
-      int r = i + 1;
-      j = 0;
-      while (r < line_length && line[r] != '"' && j < max_word_length - 1 && // - 1 because '\0'.
-             32 <= line[r] && line[r] < 127) { // 32, so spaces are allowed.
-        current_word[j] = line[r];
-        ++current_word_length;
-        ++j;
-        ++r;
-        is_word = true; // we have now begun reading a proper word.
-      }
-      i = r + 1; // step off the closing quotation mark.
-    }
-    // Handling other cases.
     if ((0 <= line[i] && line[i] < 33) && is_word) { // if the previous symbol was SPACE or TAB or ESC or etc, then we don't write it to tokens.
       current_word[j] = '\0';
       tokens[word_count] = malloc(current_word_length * sizeof(char));
@@ -196,13 +179,34 @@ char **sh_split_line(char *line)
 }
 
 
-void sh_launch(char **args)
+void wsh_launch(char **args)
 {
   if (!strcmp(args[0], "cd")) { // handling cd. Also will have to handle other builtins.
     if (chdir(args[1])) {
       perror("wsh");
+    } else if (args[1][0] == '/') { // /etc/pacman.d, /, /home/harrol3, ...
+      setenv("PWD", args[1], 1);
+    } else if (args[1][0] == '.' && args[1][1] == '.') { // cd ..
+      const char *pwd = getenv("PWD");
+      int i = strlen(pwd);
+      char *previous_pwd = malloc(sizeof(char) * 256);
+      while (pwd[i] != '/') {
+        --i;
+      }
+      int j = 0;
+      while (j < i) {
+        previous_pwd[j] = pwd[j];
+        ++j;
+      }
+      setenv("PWD", previous_pwd, 1);
+    } else {
+      const char *pwd = getenv("PWD");
+      char *new_pwd = malloc(sizeof(char) * (strlen(pwd) + strlen(args[1])));
+      new_pwd = pwd;
+      strcat(new_pwd, "/");
+      strcat(new_pwd, args[1]);
+      setenv("PWD", new_pwd, 1);
     }
-    setenv("PWD", args[1], 1);
   } else {
     pid_t pid = fork();
     pid_t wpid;
