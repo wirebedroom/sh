@@ -1,13 +1,24 @@
-// A simple shell. Appropriate line symbols are whitelisted.
+// wsh is a simple shell.
+
 // TODO
 // wsh_split_line(): treat stuff inside the quotation marks in a special way, meaning we need to treat spaces as characters.
 // wsh_launch(): handle cd .. after cd /bin or anything like that. It's weird because bin is actually a subdirectory of /usr, but cd doesn't care and just goes right in. Also if we are in /usr and we cd .. it currently doesn't change pwd to "/", instead pwd just becomes nothing.
+
+// For now appropriate line symbols are whitelisted. Maybe it's better to use a blacklisting approach? There would be less discrimination that way.
 // Maybe use a linked list for args.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_YELLOW  "\x1b[33m"
+#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN    "\x1b[36m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
 
 void wsh_loop(void);
 char *wsh_read_line(void);
@@ -26,17 +37,22 @@ int main(int argc, char **argv)
 
 void wsh_loop(void) 
 {
+  printf(ANSI_COLOR_BLUE "Welcome to wsh." ANSI_COLOR_RESET "\n");
+
   char *line;
   char **args;
   int status = 1;
-
   do {
     const char *user = getenv("USER");
     char hostname[256];
     gethostname(hostname, sizeof(hostname));
     const char *pwd = getenv("PWD");
 
-    printf("[%s@%s %s]$ ", user, hostname, pwd);
+    // printf("[%s@%s %s]$ ", user, hostname, pwd);
+    printf("[" ANSI_COLOR_BLUE "%s" ANSI_COLOR_RESET "@"
+           ANSI_COLOR_BLUE "%s " ANSI_COLOR_RESET 
+           ANSI_COLOR_GREEN "%s" ANSI_COLOR_RESET "]$ ",
+           user, hostname, pwd);
     line = wsh_read_line();
     args = wsh_split_line(line);
                                   
@@ -189,7 +205,7 @@ void wsh_launch(char **args)
     } else if (args[1][0] == '.' && args[1][1] == '.') { // cd ..
       const char *pwd = getenv("PWD");
       int i = strlen(pwd);
-      char *previous_pwd = malloc(sizeof(char) * 256);
+      char *previous_pwd = malloc(sizeof(char) * 256); // remove 256, use i.
       while (pwd[i] != '/') {
         --i;
       }
@@ -199,6 +215,10 @@ void wsh_launch(char **args)
         ++j;
       }
       setenv("PWD", previous_pwd, 1);
+    } else if (false) { 
+      // display "home/harrol3" as "~".
+      // https://stackoverflow.com/questions/9493234/chdir-to-home-directory
+      printf("");
     } else {
       const char *pwd = getenv("PWD");
       char *new_pwd = malloc(sizeof(char) * (strlen(pwd) + strlen(args[1])));
@@ -207,6 +227,13 @@ void wsh_launch(char **args)
       strcat(new_pwd, args[1]);
       setenv("PWD", new_pwd, 1);
     }
+    // Other commands you will need to implement as builtins as well, if you plan to implement them, include (for example, I'm not trying to be thorough): https://stackoverflow.com/questions/18686114/cd-command-not-working-with-execvp
+    // pushd and popd
+    // exit, logout, bye, etc
+    // fg, bg, jobs, and the & suffix
+    // history
+    // set, unset, export
+
   } else {
     pid_t pid = fork();
     pid_t wpid;
